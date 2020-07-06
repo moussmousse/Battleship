@@ -1,49 +1,64 @@
 #include <stdio.h>
 #include <string.h>
 #include <regex.h>
+#include <stdlib.h>
 #include "interface.h"
 #include "degub.h"
+#include "comcli.h"
+
+
 
 char * USER = "";
 char* TAB = "               ";
-int USERREQUIRED = 0;
+int USERREQUIRED = 2;
+int currentUser= 0;
+
+
+
 
 const int MATRIXLEN = 6;
-char matrix[MATRIXLEN][MATRIXLEN]={{' '}};;
-
+char **matrix;
+size_t nb_Case=6;
 
 
 
 //matrix manipulation
-char** initMatrix(){
-    char matrix[MATRIXLEN][MATRIXLEN]={{' '}};
-    return matrix;
+
+
+void setCharFromBattleShipMatrix(int** battleShipMatrix, char * caseMatrix,int value){
+    
+    int i = caseMatrix[0] - 65;
+    int j = caseMatrix[1] - 49;
+    battleShipMatrix[i][j]=value;
 }
 
-char** setValueMatrix(char caseCoordinate[2], char value,char matrixIn[MATRIXLEN][MATRIXLEN]){
-    char matrixRes[MATRIXLEN][MATRIXLEN] =  matrixIn;
 
-    for (int i = 0; i < MATRIXLEN; i++)
-    {
-        for (int j = 0; j < MATRIXLEN; j++)
-        {
-            if( (int)caseCoordinate[1] == j && caseCoordinate[0]==(char)((int)'A'+i ) ){
-                if( matrix[i][j] == 'O' && value=='X'){
-                    matrixRes[i][j] = 'X';
-                }
-                else if(matrix[i][j]==' '){
-                    matrixRes[i][j] = 'O';
-                }
-            }
-        }
-        
+char* getCharFromBattleShipMatrix(int** battleShipMatrix, int i, int j){
+    switch(battleShipMatrix[i][j]){
+        case 0:
+            return " ";
+            break;
+        case 1:
+            return "O";
+            break;
+        return "X";
+            break;
     }
-    return matrixRes;
 }
 
-char  getValueMatrix(int caseCoordinateLetter, int caseCoordinateNumber,char matrixIn[MATRIXLEN][MATRIXLEN]){
-    return matrixIn[caseCoordinateLetter][caseCoordinateNumber];
+int** initBattleShipMatrix(int** battleShipMatrix){
+    battleShipMatrix= malloc(nb_Case*sizeof(int*));
+
+    for (int i=0;i<nb_Case;i++){
+        battleShipMatrix[i] = malloc(nb_Case*sizeof(int));
+        for (int j=0;j<nb_Case;j++){
+            battleShipMatrix[i][j]=0;
+        }
+    }
+    return battleShipMatrix;
 }
+
+
 
 
 
@@ -102,7 +117,7 @@ void exitMenu(void){
 
 
 
-void queued(){
+void queued(int sock){
     char passwd[1024];
     clear();
     printNewBlock();
@@ -126,7 +141,7 @@ void queued(){
 }
 
 
-void logIn(void){    
+void logIn(int difPrt){    
     char passwd[1024];
     char username[1024];    
     printNewBlock(); 
@@ -139,16 +154,31 @@ void logIn(void){
     printf("%s",TAB);
     //
     //FIX ME
+    int sock =init_session(username, passwd, difPrt);
+
+    if ( sock== -1){
+        printf("Invalid credentials");
+         exit(1);
+    }
+      
     USER = username;
-    queued();
+    if(strcmp(USER,"admin")==0){
+        adminMenu(sock);
+    }
+    else
+    {
+        queued(sock);
+    }
+    
+    
 }
 
 
 
-void menuInterface(void){
+void menuInterface(int difPrt){
     clear();
-    printf("Welcome to the battleship game !\n%s",TAB);
-    
+    printf("%sWelcome to the battleship game !\n%s",TAB,TAB);
+
     char awnser[1024];    
     int res = 1;
     while (res)
@@ -165,7 +195,7 @@ void menuInterface(void){
         
     }
     if(strcmp(awnser,"1")==0){
-        logIn();
+        logIn(difPrt);
     }
     else if (strcmp(awnser,"2")==0){
         exitMenu();
@@ -176,14 +206,18 @@ void menuInterface(void){
 
 
 //Admin
-adminMenu(void){
+void adminMenu(int sock){
     clear();    
     printf("Welcome back Administrator !\n%s",TAB);
-    char awnser[1024];    
+    char** listUser;
+    size_t nb_User=10;
+    listUser= calloc(nb_User+1,sizeof(char*));
+    if (!listUser) { perror("calloc listUser"); exit (EXIT_FAILURE); };
+    char awnser[1024];   
     int res = 1;
     while (res){
         printNewBlock();
-        printf("Select your awnser\n%s 1 - Add New User\n%s 2 - Start new Game\n%s 3 - log Out\n%s",TAB,TAB,TAB,TAB);
+        printf("Select your awnser\n%s 1 - Add New User\n%s 2 - log Out\n%s",TAB,TAB,TAB);
         scanf("%s", awnser);
         printf("%s",TAB);
         char* listValueExpected[] = {"1","2","3",NULL};
@@ -193,35 +227,111 @@ adminMenu(void){
         }
     }
     if(strcmp(awnser,"1")==0){
-        adminAddUser();
-    }
-    else if (strcmp(awnser,"2")==0){
+        int finish =1;
+        while (finish)
+        {
+            clear();
+            adminAddUser(sock,listUser);
+            currentUser++;
+            for(int i=0;i<currentUser;i++){
+                printf("   - %s\n%s" ,listUser[i],TAB);
+            }
+            char awnser2[1024];    
+            int res = 1;
+            while (res){
+                printNewBlock();
+                printf("User required %d/%d \n%s",currentUser,USERREQUIRED,TAB);
+                printf("Do you want to add another user? y or n\n%s",TAB);
+                scanf("%s", awnser2);
+                printf("%s",TAB);
+                char* listValueExpected[] = {"y","n",NULL};
+                res = verifyAwnser(awnser2,listValueExpected);
+                if(strcmp(awnser2,"n")==0 && currentUser<USERREQUIRED){
+                        printf("User required %d/%d, pleasse add a new user\n%s",currentUser,USERREQUIRED,TAB);
+                        adminAddUser(sock,listUser);
+                }
+                else if(res){                  
+                    printf("please enter y or n\n%s",TAB);
+                }
+                
+            }
+            if(strcmp(awnser2,"n")==0){
+                finish=0;
+                endStoreUser(sock);
+            }
+        }
         adminInitGame();
     }
-    else if (strcmp(awnser,"3")==0){
+    else if (strcmp(awnser,"2")==0){
         exitMenu();
     }
 
 }
 
-adminAddUser(void){
-    clear();
+void adminAddUser(int sock, char** listUser){
+    
     printf("Adding a new User\n%s",TAB);
-    //List curent user???
-    char passwd[1024];
-    char username[1024];    
+    printf("Curernt User List:\n%s",TAB);
+    for(int i=0;i<currentUser;i++){
+        printf("   - %s\n%s" ,listUser[i],TAB);
+    }
+    
+
+    char passwd[32];
+    char username[32];    
+    memset(passwd,0,32);
+    memset(username,0,32);
     printNewBlock(); 
     printf("Enter a Username\n%s",TAB);
-    scanf("%s", username);
+    scanf("%s\0", username);
     printf("\n%s",TAB);
     printf("Enter a password for this user\n%s"),TAB;
     printf("%s",TAB);
-    scanf("%s", passwd);
+    scanf("%s\0", passwd);
     printf("%s",TAB);
 
-    printf("User added ! Enter to continue\n%s",TAB);
-    scanf("");
-    adminMenu();
+    //send new user to server
+    save_user(username,passwd,sock);
+    listUser[currentUser]= strdup(username);
+
+
+    printf("User added !\n%s",TAB);
+
+
+}
+
+
+void adminAddShip(int ** battleShipMatrix) {
+    clear(); 
+    printBattle(battleShipMatrix);
+    printNewBlock(); 
+    printf("Adding a new Ship\n%s",TAB);
+    char awnser[1024];    
+    int res = 1;
+    while (res)
+    {
+        
+        printf("Enter the letter and number of case like [A-F][1-6] or cancel to go back\n%s",TAB);
+        scanf("%s", awnser);
+        printf("%s",TAB);
+        char* listValueExpected[] = {"cancel",NULL};
+        res = verifyAwnser(listValueExpected);
+        if(res){
+                res = verifyAwnserRegex(awnser,"[A-F]{1}[1-6]{1}");
+            if(res){
+                printf("Incorrect Input!\n%s\n%s",TAB,TAB);
+            }
+            else{
+                setCharFromBattleShipMatrix(battleShipMatrix,awnser,1);
+            }
+        }
+        else{
+
+        }
+        
+    }
+    
+
 }
 
 int adminRequestPlayer(char* playerName) {
@@ -239,7 +349,7 @@ int adminRequestPlayer(char* playerName) {
         }
     }
     //send awnser to server
-    if(strncmp(awnser,"y")){
+    if(strcmp(awnser,"y")==0){
         return 1;
     }
     else{
@@ -248,37 +358,47 @@ int adminRequestPlayer(char* playerName) {
 }
 
 
-adminInitGame(void){
+void adminInitGame(void){
     clear();
     printf("Initializing game\n%s",TAB);
+    int ** battleShipMatrixPlayer1;
+    int ** battleShipMatrixPlayer2;
+    battleShipMatrixPlayer1 = initBattleShipMatrix(battleShipMatrixPlayer1);
+    battleShipMatrixPlayer2 = initBattleShipMatrix(battleShipMatrixPlayer2);
 
-    printNewBlock();
-    char awnser[1024];    
-    int res = 1;
-    while (res){
-        printNewBlock();
-        printf("choose a number of required player to launch the Game [2-9]\n%s ",TAB);
-        scanf("%s", awnser);
-        printf("%s",TAB);
-        char* listValueExpected = "[2-9]{1}";
-        res = verifyAwnserRegex(awnser,listValueExpected);
-        if(res){
-            printf("please enter a number beetwen 2 and 9\n%s",TAB);
+    //FIX ME
+    adminRequestPlayer("user 2");
+    adminRequestPlayer("user 1");
+    printf("Number of player is good !\n%s",TAB);
+    
+    int finish =1;
+    while(finish){
+        clear();       
+        printf("Add some ship !\n%s",TAB);
+        int res = 1;
+        char awnser[1024];
+        while (res){
+            printNewBlock();
+            printf("Select your awnser\n%s 1 - Add New Ship for player 1 \n%s 2 - Add New Ship for player 2\n%s 3 - finishSetup\n%s",TAB,TAB,TAB,TAB);
+            scanf("%s", awnser);
+            printf("%s",TAB);
+            char* listValueExpected[] = {"1","2",NULL};
+            res = verifyAwnser(awnser,listValueExpected);
+            if(res){
+                printf("please enter a number correspoding with the rigth awnser\n%s",TAB);
+            }
+        }
+        if(strcmp(awnser,"1")==0){
+            adminAddShip(battleShipMatrixPlayer1);
+            
+        }
+        else if (strcmp(awnser,"2")==0) {
+            adminAddShip(battleShipMatrixPlayer2);
+        }
+        else if (strcmp(awnser,"3")==0){
+           finish=0;
         }
     }
-    //send player number to server
-    USERREQUIRED = awnser;
-    while (USERREQUIRED)
-    {
-        USERREQUIRED -= adminRequestPlayer("user 1");
-    }
-    printf("Number of player is good !\n%s",TAB);
-
-    clear();
-    printf("add a new ship !\n%s",TAB);
-
-
-
     
 
 }
@@ -288,19 +408,20 @@ adminInitGame(void){
 
 
 
-//Game
-void game(void){
+//Game Normal User
+void game(){
     clear();
     printf("\n\n\n%sGame Start !\n%s",TAB,TAB);
     int endGame = 1;
+    int ** battleShipMatrix;
     while (endGame){
         
-        printBattle();
+        printBattle(battleShipMatrix);
         newTurn();
         clear();
     }
     
-    menuInterface();   
+    menuInterface(1);   
 }
 
 void newTurn(void){
@@ -331,7 +452,7 @@ void attack(void){
 
 
 
-void printBattle(void){
+void printBattle(int ** battleShipMatrix){
     printf("\n%s",TAB);
     for (int i = 0; i < 13; i++){
        if(i%2==0){
@@ -380,8 +501,8 @@ void printBattle(void){
                     printf("|");
                 }
                 else {
-                    //FIX ME
-                    printf("   ");
+                    
+                    printf(" %s ",getCharFromBattleShipMatrix(battleShipMatrix,i/2,j/2));
                 }
             }
             
