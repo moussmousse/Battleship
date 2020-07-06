@@ -315,7 +315,7 @@ void adminAddShip(int ** battleShipMatrix) {
         scanf("%s", awnser);
         printf("%s",TAB);
         char* listValueExpected[] = {"cancel",NULL};
-        res = verifyAwnser(listValueExpected);
+        res = verifyAwnser(awnser,listValueExpected);
         if(res){
                 res = verifyAwnserRegex(awnser,"[A-F]{1}[1-6]{1}");
             if(res){
