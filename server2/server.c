@@ -9,6 +9,8 @@
 #include <netdb.h> /* gethostbyname */
 #include <errno.h>
 #include <string.h>
+#include <pthread.h>
+
 
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1
@@ -28,7 +30,13 @@ typedef struct User{
   SOCKET soc;
 } User;
 
-
+typedef struct ThArgs{
+  SOCKET csocka;
+  SOCKET sock_listen;
+  SOCKET adm_sock;
+  int n_users;
+  User* users;
+}ThArgs;
 
 int init_connection(void){
   //Creation du socket
@@ -97,7 +105,7 @@ int init_connection(void){
 }
 
 User inituser(char* constr ){
-  User user;// = malloc(sizeof(User));
+  User user;
   memset(user.constr,0,32);
   memcpy(user.constr,constr,32);
   user.soc = -1;
@@ -117,49 +125,97 @@ int Store_users(SOCKET csock, User users[]){
           return n;
         }
       
-      //users[n] = malloc(sizeof(User));
       users[n] = inituser(buffer);
-      //memcpy(users[n].constr, buffer,sizeof(buffer));
-      //users[n].constr = buffer;*
-      
-      printf("Buffer : \n");
-  for (int i = 0; i < 32; ++i) {
-   printf("%d ", (int)buffer[i]); 
-   } 
-   printf("\n");
-      printf("What's stored in my struct : \n");
-  for (int i = 0; i < 32; ++i) {
-   printf("%d ", (int)users[n].constr[i]); 
-   } 
-   printf("\n");
 
 
-      printf("Stored : %s \n",users[n].constr);
+      printf("Stored user number %d :\n %s \n",n,users[n].constr);
       n++;
   }
   return n;
 }
 
 void Display_users(User users[], int num){
-   printf ("\n*************\nUser number %d: \n",num);
+  printf("*************\nList of all users : \n");
   for(int i = 0; i<num;i++){
-    printf("User : %s\nSocket : %d",users[i].constr,users[i].soc);
+    printf ("\nUser number %d: \n",i);
+    printf("User : %s\nSocket : %d\n\n",users[i].constr,users[i].soc);
   }
+  printf("*************\nEnd of list\n\n");
 }
 
 int check_user_creds(int nUsers, char* creds, User users[]){
-  
-  printf("\n\nUsers :\n");
-
-
+  Display_users(users, nUsers);
   for(int i = 0 ; i < nUsers ; i++){
-    Display_users(users, i);
-    printf("\n----\n");
+    printf("Match ? %s : %s  -> socket : %d\n",creds, users[i].constr, users[i].soc );
     if (strcmp(creds,users[i].constr) == 0 && users[i].soc == -1){
       return i;
     }
   }
   return -1;
+}
+
+void Send_user_to_admin(SOCKET adm_sock, char* constr){
+  send(adm_sock, constr, sizeof(constr) , 0); 
+}
+
+char* split_constr(char* constr){
+  char* username;
+  memset(username,0,20);
+  int ind = 0;
+  for (int i = 0 ; i < sizeof(constr) ; i++){
+    if (constr[i] == ';'){
+      memcpy(username,constr,ind);
+      break;
+    }
+  }
+  return username;
+}
+
+void listen_users(void* args){
+  ThArgs* thargs = (ThArgs*)args;
+  while(1){
+     SOCKADDR_IN csin = { 0 };
+      socklen_t sinsize = sizeof (csin);
+
+      if ((thargs->csocka = accept(thargs->sock_listen,  (SOCKADDR *)&csin, &sinsize)) == -1 ){
+        perror("accept");
+        return;
+      }
+  
+      printf("Incomming client...\n");
+
+      char buffer[32];
+      memset(buffer,0,32);
+
+      int n = read(thargs->csocka, buffer, sizeof(buffer));
+      if (n > 0){
+        printf ("recieved from the client : %s\n",buffer);
+        int user_ind = check_user_creds(thargs->n_users,buffer,thargs->users) ;
+        if ( user_ind >= 0 ) 
+        {
+          printf("Creds matching :) \n");
+          send(thargs->csocka, "OK", 3 , 0); 
+          thargs->users[user_ind].soc = thargs->csocka;
+          send(thargs->adm_sock,buffer,sizeof(buffer),0);
+          //send(adm_sock,split_constr(buffer),sizeof(buffer),0);
+        }
+        else
+        {
+          printf("Creds missmatch :( \n");
+           send(thargs->csocka, "KO", 3 , 0);
+        }
+      }
+  }
+}
+
+ThArgs init_thargs(SOCKET csocka,SOCKET sock_listen, SOCKET adm_sock, int n_users, User* users){
+  ThArgs thargs;
+  thargs.csocka = csocka;
+  thargs.sock_listen = sock_listen;
+  thargs.adm_sock = adm_sock;
+  thargs.n_users = n_users;
+  thargs.users = users;
+  return thargs;
 }
 
 void Users_connexion(int n_users, User users[], SOCKET adm_sock){
@@ -193,44 +249,15 @@ void Users_connexion(int n_users, User users[], SOCKET adm_sock){
    }
   printf("Listening...\n");
   int en_adm_queue = 0;
-  while (en_adm_queue == 0){   //while the admin doesn't close user queue
-       SOCKADDR_IN csin = { 0 };
-      socklen_t sinsize = sizeof (csin);
-
-      if ((csocka = accept(sock_listen,  (SOCKADDR *)&csin, &sinsize)) == -1 ){
-        perror("accept");
-        continue;
-      }
-  
-      printf("Incomming client...\n");
-
-      char buffer[32];
-      memset(buffer,0,32);
-
-      int n = read(csocka, buffer, sizeof(buffer));
-      if (n > 0){
-        printf ("recieved from the client : %s\n",buffer);
-        int user_ind = check_user_creds(n_users,buffer,users) ;
-        if ( user_ind > 0 ) 
-        {
-          printf("Creds matching :) \n");
-          send(csocka, "OK", 3 , 0); 
-          users[user_ind].soc = csocka;
-          
-        }
-        else
-        {
-          printf("Creds missmatch :( \n");
-           send(csocka, "KO", 3 , 0);
-        }
-      }
-
-
-
-
+  pthread_t thread_users;  //while the admin doesn't close user queue
+  ThArgs thargs = init_thargs(csocka,sock_listen,adm_sock,n_users,users);
+  if (pthread_create(&thread_users,NULL,listen_users,&thargs) == -1);
+   printf("Error while create listen thread");
+   exit(3);
   }
 
-}
+
+
 
 int main(){
 
