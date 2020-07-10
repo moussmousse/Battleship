@@ -3,7 +3,9 @@
 void setCharFromBattleShipMatrix(int** battleShipMatrix, char * caseMatrix,int value);
 char* getCharFromBattleShipMatrix(int** battleShipMatrix, int i, int j);
 int** initBattleShipMatrix(int** battleShipMatrix);
-
+int setMatrixbeetwen2Case(int** battleShipMatrix, char * caseMatrix1,char * caseMatrix2);
+void stringToMatrix(char* buffer,int ** battleShipMatrix);
+char * matirixToBuffer(int ** battleShipMatrix);
 
 
 int verifyAwnser(char* value, char** listValueExpected);
@@ -17,15 +19,16 @@ void logIn(int difPrt);
 
 //admin
 void adminMenu(int sock);
-int adminRequestPlayer(char* playerName);
+int adminRequestPlayer(int sock);
 void adminAddUser(int sock,char** listUser);
 void adminAddShip(int ** battleShipMatrix);
-void adminInitGame(void);
+void adminInitGame(int sock, char** listUser);
 
 //game
-void game(void);
+void game(int sock, char* buffer);
 void printBattle(int ** battleShipMatrix);
-void newTurn(void);
-void attack(void);
+void printBattle2Matrix(int ** battleShipMatrix,int ** battleShipMatrixShow);
+int newTurn(int sock, int **battleShipMatrix,int ** battleShipMatrixShow);
+void attack(int sock);
 
 void clear(void);
