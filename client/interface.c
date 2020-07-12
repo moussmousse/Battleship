@@ -5,7 +5,6 @@
 #include <pthread.h>
 #include <unistd.h>
 #include "interface.h"
-#include "degub.h"
 #include "comcli.h"
 
 
@@ -497,7 +496,6 @@ int adminRequestPlayer(int sock) {
     char string2[2] ="";
     string1[0]= listUserAccepted[0];
     string2[0]=listUserAccepted[1];
-    debugLogV2(string1,string2);
     //send awnser to server
     send_selected_users(sock,listUserAccepted[0],listUserAccepted[1]);
 }
@@ -508,7 +506,6 @@ void *userQueue(void *sock){
         char *str=malloc(sizeof(char)*64);
         str=wait_users(*((int*) sock));       
         if (str!=NULL){
-            debugLog("new User"); 
             strcpy(listUserConnected[CPT_QUEUE],listUserCreated[(int)str[0]-48]);
             CPT_QUEUE++;
         }

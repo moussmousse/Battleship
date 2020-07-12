@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "interface.h"
-#include "degub.h"
+
 
 void usage(){
   printf("Args : \n-u for user\n-a for admin\n ");

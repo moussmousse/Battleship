@@ -4,11 +4,11 @@
 # Compilers and options
 CC=gcc
 CPPFLAGS= -MMD
-CFLAGS= -Wall -Wextra -std=c99 -pedantic -O2 -g
+CFLAGS= -pthread
 LDFLAGS=
 LDLIBS= -lm
 
-SRC = comcli.c interface.c  main.c
+SRC =  comcli.c interface.c main.c
 OBJ = ${SRC:.c=.o}
 DEP = ${SRC:.c=.d}
 
