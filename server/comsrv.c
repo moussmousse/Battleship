@@ -11,6 +11,7 @@
 #include <string.h>
 #include <pthread.h>
 #include "game.h"
+#include "comsrv.h"
 
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1
@@ -20,30 +21,7 @@
 #define ADDRESS "192.168.1.31"
 #define BUF_SIZE 1024 //full random
 
-typedef int SOCKET;
-typedef struct sockaddr_in SOCKADDR_IN;
-typedef struct sockaddr SOCKADDR;
-typedef struct in_addr IN_ADDR;
 
-typedef struct User{
-  char constr[32];
-  SOCKET soc;
-  int** matrix;
-  int** matrix_show;
-} User;
-
-typedef struct ThArgs{
-  SOCKET csocka;
-  SOCKET sock_listen;
-  SOCKET adm_sock;
-  int n_users;
-  User* users;
-}ThArgs;
-
-typedef struct Game_Users{
-  User user1;
-  User user2;
-}Game_Users;
 
 int init_connection(void){
   //Creation du socket
@@ -165,18 +143,6 @@ void Send_user_to_admin(SOCKET adm_sock, char* constr){
   send(adm_sock, constr, sizeof(constr) , 0); 
 }
 
-char* split_constr(char* constr){
-  char* username;
-  memset(username,0,20);
-  int ind = 0;
-  for (int i = 0 ; i < sizeof(constr) ; i++){
-    if (constr[i] == ';'){
-      memcpy(username,constr,ind);
-      break;
-    }
-  }
-  return username;
-}
 
 void *listen_users(void* args){
   ThArgs* thargs = (ThArgs*)args;
@@ -184,12 +150,12 @@ void *listen_users(void* args){
      SOCKADDR_IN csin = { 0 };
       socklen_t sinsize = sizeof (csin);
 
-/*
+    /*
       if ((thargs->csocka = accept(thargs->sock_listen,  (SOCKADDR *)&csin, &sinsize)) == -1 ){
         perror("accept");
         break;
       }
-*/
+  */
       thargs->csocka = accept(thargs->sock_listen,  (SOCKADDR *)&csin, &sinsize);
   
       printf("Incomming client...\n");
@@ -441,7 +407,7 @@ void win(User winer, User looser){
   printf("!! %s WIN !!\n",winer.constr);
   printf("***************\n\n");
 
-// Send result
+  // Send result
   send(winer.soc,"WIN\0",sizeof("WIN\0"),0);
   send(looser.soc,"LOOSE\0",sizeof("LOOSE\0"),0);
 
@@ -451,7 +417,7 @@ void win(User winer, User looser){
 
 
 
-
+/*
 
 int main(){
 
@@ -487,3 +453,4 @@ int main(){
 
   exit(0);
 }
+*/
